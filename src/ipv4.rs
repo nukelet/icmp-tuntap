@@ -1,6 +1,8 @@
 use std::fmt;
+use std::cmp::max;
 
 use nom::IResult;
+use nom::bytes;
 use nom::error::Error;
 use nom::bits;
 use nom::number;
@@ -10,6 +12,7 @@ use nom::sequence;
 // https://en.wikipedia.org/wiki/Internet_Protocol_version_4
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct Ipv4HeaderPrelude {
     version: u8,
     header_length: u8,
@@ -18,6 +21,7 @@ pub struct Ipv4HeaderPrelude {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct Ipv4HeaderFragmentationInfo {
     flags: u8,
     offset: u16,
@@ -141,6 +145,10 @@ pub fn parse_ipv4_header(input: &[u8]) -> IResult<&[u8], Ipv4Header> {
     let (input, source) = number::streaming::be_u32(input)?;
     let (input, destination) = number::streaming::be_u32(input)?;
 
+    // options field is not empty
+    let options_bytecount = max(0, (prelude.header_length - 5) * 4);
+    let (input, options) = bytes::streaming::take(options_bytecount)(input)?;
+
     // TODO: we purposefully ignore the options field for now
     Ok((input, Ipv4Header {
         prelude,
@@ -152,7 +160,7 @@ pub fn parse_ipv4_header(input: &[u8]) -> IResult<&[u8], Ipv4Header> {
         checksum,
         source: Ipv4Address(source),
         destination: Ipv4Address(destination),
-        options: Vec::new(),
+        options: Vec::from(options),
     }))
 }
 
