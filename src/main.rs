@@ -1,6 +1,7 @@
 use tun_tap::{Iface, Mode};
 
 mod ipv4;
+mod icmp;
 
 fn main() {
     let iface = Iface::new("tun0", Mode::Tun).expect("unable to create TUN/TAP device");
