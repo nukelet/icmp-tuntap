@@ -14,10 +14,10 @@ use nom::sequence;
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 pub struct Ipv4HeaderPrelude {
-    version: u8,
-    header_length: u8,
-    dscp: u8,
-    ecn: u8,
+    pub version: u8,
+    pub header_length: u8,
+    pub dscp: u8,
+    pub ecn: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -56,7 +56,7 @@ impl Ipv4HeaderProtocol {
     }
 }
 
-pub struct Ipv4Address(u32);
+pub struct Ipv4Address(pub u32);
 
 impl fmt::Display for Ipv4Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -74,16 +74,16 @@ impl fmt::Debug for Ipv4Address {
 
 #[derive(Debug)]
 pub struct Ipv4Header {
-    prelude: Ipv4HeaderPrelude,    
-    total_length: u16,
-    identification: u16,
-    frag_info: Ipv4HeaderFragmentationInfo,
-    ttl: u8,
-    protocol: Ipv4HeaderProtocol,
-    checksum: u16,
-    source: Ipv4Address,
-    destination: Ipv4Address,
-    options: Vec<u8>,
+    pub prelude: Ipv4HeaderPrelude,    
+    pub total_length: u16,
+    pub identification: u16,
+    pub frag_info: Ipv4HeaderFragmentationInfo,
+    pub ttl: u8,
+    pub protocol: Ipv4HeaderProtocol,
+    pub checksum: u16,
+    pub source: Ipv4Address,
+    pub destination: Ipv4Address,
+    pub options: Vec<u8>,
 }
 
 fn parse_version_and_header_length(input: &[u8]) -> IResult<&[u8], (u8, u8)> {
