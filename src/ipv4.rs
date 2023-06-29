@@ -8,10 +8,12 @@ use nom::bits;
 use nom::number;
 use nom::sequence;
 
+use crate::util::Serialize;
+use crate::util::checksum_16;
 
 // https://en.wikipedia.org/wiki/Internet_Protocol_version_4
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct Ipv4HeaderPrelude {
     pub version: u8,
@@ -20,11 +22,26 @@ pub struct Ipv4HeaderPrelude {
     pub ecn: u8,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Serialize for Ipv4HeaderPrelude {
+    fn serialize(&self) -> Vec<u8> {
+        let version_ihl = (self.version << 4) | self.header_length;
+        let dscp_ecn = (self.dscp << 2) | self.ecn;
+        vec![version_ihl, dscp_ecn]
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct Ipv4HeaderFragmentationInfo {
-    flags: u8,
-    offset: u16,
+    pub flags: u8,
+    pub offset: u16,
+}
+
+impl Serialize for Ipv4HeaderFragmentationInfo {
+    fn serialize(&self) -> Vec<u8> {
+        let flags_offset = ((self.flags as u16) << 13) | self.offset;
+        return Vec::from(flags_offset.to_be_bytes())
+    }
 }
 
 // There are several others, but these are the most common
@@ -56,6 +73,7 @@ impl Ipv4HeaderProtocol {
     }
 }
 
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub struct Ipv4Address(pub u32);
 
 impl fmt::Display for Ipv4Address {
@@ -72,7 +90,7 @@ impl fmt::Debug for Ipv4Address {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Ipv4Header {
     pub prelude: Ipv4HeaderPrelude,    
     pub total_length: u16,
@@ -164,3 +182,85 @@ pub fn parse_ipv4_header(input: &[u8]) -> IResult<&[u8], Ipv4Header> {
     }))
 }
 
+impl Serialize for Ipv4Header {
+    fn serialize(&self) -> Vec<u8> {
+        let mut s: Vec<u8> = Vec::new();
+
+        let version_ihl = self.prelude.serialize();
+        let frag_info = self.frag_info.serialize();
+
+        s.extend(version_ihl);
+        s.extend(self.total_length.to_be_bytes());
+        s.extend(self.identification.to_be_bytes());
+        s.extend(frag_info);
+        s.push(self.ttl);
+        s.push(self.protocol as u8);
+        s.extend(self.checksum.to_be_bytes());
+        s.extend(self.source.0.to_be_bytes());
+        s.extend(self.destination.0.to_be_bytes());
+        s.extend(&self.options);
+
+        s
+    }
+}
+
+#[test]
+fn test_ip_header_serialization() {
+    let raw = [
+        69,                 // Version number and IHL
+        0,                  // DSCP, ECN
+        0, 102,             // Total length
+        133, 153,           // Identification
+        0, 0,               // Flags, Fragment Offset
+        255,                // TTL
+        17,                 // Protocol
+        74, 242,            // Header checksum
+        10, 0, 0, 0,        // Source IP
+        224, 0, 0, 251      // Destination IP
+    ];
+
+    let (_, header) = parse_ipv4_header(&raw).unwrap();
+    assert_eq!(raw, header.serialize().as_slice());
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct Ipv4Packet {
+    pub header: Ipv4Header,
+    pub data: Vec<u8>,
+}
+
+pub fn parse_ipv4_packet(input: &[u8]) -> IResult<&[u8], Ipv4Packet>
+{
+    let (rest, header) = parse_ipv4_header(input)?;
+    let packet = Ipv4Packet {
+        header,
+        data: Vec::from(rest),
+    };
+
+    Ok((&[], packet))
+}
+
+#[allow(dead_code)]
+impl Ipv4Packet {
+    pub fn update_checksum(&mut self) {
+        self.header.checksum = 0;
+        let raw_data: Vec<u8> = self.header.serialize().to_vec();
+        self.header.checksum = checksum_16(&raw_data);
+    }
+}
+
+#[test]
+fn test_ipv4_packet_checksum() {
+    // random ICMP packet from a linux ping
+    let bytes = [
+        8, 0, 69, 0, 0, 84, 98, 13, 64, 0, 64, 1, 196, 155, 10, 0, 0, 0, 10, 0, 0, 1, 8, 0, 96, 221, 0, 4, 0, 2, 214, 16, 157, 100, 0, 0, 0, 0, 86, 212, 14, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55
+    ];
+
+    let (_, mut packet) = parse_ipv4_packet(&bytes).unwrap();
+    let checksum = packet.header.checksum;
+    packet.update_checksum();
+    let sum = checksum as u32 + packet.header.checksum as u32;
+    eprintln!("original: {:#06x}, calculated: {:#06x}, sum: {:#010x}", checksum, packet.header.checksum, sum);
+    assert_eq!(checksum, packet.header.checksum);
+}

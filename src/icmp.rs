@@ -1,25 +1,25 @@
 use nom::IResult;
 use nom::bytes;
 use nom::number;
-use nom::sequence;
 
 use crate::ipv4::{Ipv4Address, Ipv4Header};
 use crate::ipv4::parse_ipv4_header;
+use crate::util::Serialize;
 
 #[allow(dead_code)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum IcmpType {
-    EchoReply = 0,
-    DestinationUnreachable = 3,
-    RedirectMessage = 5,
-    EchoRequest = 8,
-    RouterAdvertisement = 9,
-    RouterSolicitation = 10,
-    TimeExceeded = 11,
-    BadIpHeader = 12,
-    Timestamp = 13,
-    TimestampReply = 14,
+    EchoReply = 0u8,
+    DestinationUnreachable = 3u8,
+    RedirectMessage = 5u8,
+    EchoRequest = 8u8,
+    RouterAdvertisement = 9u8,
+    RouterSolicitation = 10u8,
+    TimeExceeded = 11u8,
+    BadIpHeader = 12u8,
+    Timestamp = 13u8,
+    TimestampReply = 14u8,
     Unimplemented(u8),
 }
 
@@ -37,6 +37,24 @@ impl From<u8> for IcmpType {
             13 => IcmpType::Timestamp,
             14 => IcmpType::TimestampReply,
             _ => IcmpType::Unimplemented(orig),
+        }
+    }
+}
+
+impl Into<u8> for IcmpType {
+    fn into(self) -> u8 {
+        match self {
+            IcmpType::Unimplemented(unknown) => unknown,
+            IcmpType::EchoReply => 0u8,
+            IcmpType::DestinationUnreachable => 3u8,
+            IcmpType::RedirectMessage => 5u8,
+            IcmpType::EchoRequest => 8u8,
+            IcmpType::RouterAdvertisement => 9u8,
+            IcmpType::RouterSolicitation => 10u8,
+            IcmpType::TimeExceeded => 11u8,
+            IcmpType::BadIpHeader => 12u8,
+            IcmpType::Timestamp => 13u8,
+            IcmpType::TimestampReply => 14u8,
         }
     }
 }
@@ -79,6 +97,55 @@ pub enum IcmpHeaderData {
     },
 }
 
+impl Serialize for IcmpHeaderData {
+    fn serialize(&self) -> Vec<u8> {
+        let mut s = Vec::new();
+
+        match self {
+            IcmpHeaderData::Redirect { ip_addr, ip_header, data } => {
+                s.extend(&ip_addr.0.to_be_bytes());
+                s.extend(&ip_header.serialize());
+                s.extend(data);
+            },
+
+            IcmpHeaderData::TimeExceeded { ip_header, data } => {
+                s.extend(&ip_header.serialize());
+                s.extend(data);
+            },
+
+            IcmpHeaderData::Timestamp {
+                id, seq, originate, receive, transmit
+            } => {
+                s.extend(id.to_be_bytes());
+                s.extend(seq.to_be_bytes());
+                s.extend(originate.to_be_bytes());
+                s.extend(receive.to_be_bytes());
+                s.extend(transmit.to_be_bytes());
+            },
+
+            IcmpHeaderData::TimestampReply {
+                id, seq, originate, receive, transmit
+            } => {
+                s.extend(id.to_be_bytes());
+                s.extend(seq.to_be_bytes());
+                s.extend(originate.to_be_bytes());
+                s.extend(receive.to_be_bytes());
+                s.extend(transmit.to_be_bytes());
+            },
+
+            IcmpHeaderData::DestinationUnreachable {
+                next_hop_mtu, ip_header, data
+            } => {
+                s.extend(next_hop_mtu.to_be_bytes());
+                s.extend(ip_header.serialize());
+                s.extend(data);
+            }
+        }
+
+        return s;
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct IcmpHeader {
@@ -88,6 +155,19 @@ pub struct IcmpHeader {
     pub data: Option<IcmpHeaderData>,
 }
 
+impl Serialize for IcmpHeader {
+    fn serialize(&self) -> Vec<u8> {
+        let mut s: Vec<u8> = Vec::new();
+        s.push(self.icmp_type.into());
+        s.push(self.code);
+        s.extend(self.checksum.to_be_bytes());
+        if let Some(data) = &self.data {
+            s.extend(data.serialize());
+        }
+        return s;
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct IcmpPacket {
@@ -95,6 +175,16 @@ pub struct IcmpPacket {
     pub data: Vec<u8>,
 }
 
+impl Serialize for IcmpPacket {
+    fn serialize(&self) -> Vec<u8> {
+        let mut s = Vec::new();
+        s.extend(self.header.serialize());
+        s.extend(&self.data);
+        return s;
+    }
+}
+
+#[allow(dead_code)]
 impl IcmpPacket {
     fn description(&self) -> &'static str {
         let icmp_type = self.header.icmp_type;
@@ -304,4 +394,17 @@ pub fn parse_icmp_packet(input: &[u8]) -> IResult<&[u8], IcmpPacket> {
         data: Vec::from(data),
     };
     Ok((input, packet))
+}
+
+#[test]
+fn test_icmp_packet_serialization() {
+    let bytes = [
+        8,          // Type
+        0,          // Code  
+        88, 204,    // Checksum
+        // data (from the `ping` command on linux)
+        0, 3, 0, 4, 86, 1, 157, 100, 0, 0, 0, 0, 227, 243, 9, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ];
+    let (_, packet) = parse_icmp_packet(&bytes).unwrap();
+    assert_eq!(bytes, packet.serialize().as_slice());
 }

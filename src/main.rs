@@ -2,6 +2,7 @@ use tun_tap::{Iface, Mode};
 
 use crate::{ipv4::Ipv4HeaderProtocol, icmp::{parse_icmp_packet, IcmpType, IcmpPacket, IcmpHeader}};
 
+mod util;
 mod ipv4;
 mod icmp;
 
@@ -11,7 +12,7 @@ fn main() {
         let mut buf = [0u8; 128];
         let read = iface.recv(&mut buf).unwrap();
         eprintln!("read {read} bytes");
-        eprintln!("raw: {:?}", buf);
+        eprintln!("raw: {:?}", &buf[0..read]);
         // the TUN frames are as follows:
         // Flags: 2 bytes
         // Protocol: 2 bytes (0x0800 for IPv4)
