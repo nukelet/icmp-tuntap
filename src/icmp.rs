@@ -5,6 +5,7 @@ use nom::number;
 use crate::ipv4::{Ipv4Address, Ipv4Header};
 use crate::ipv4::parse_ipv4_header;
 use crate::util::Serialize;
+use crate::util::checksum_16;
 
 #[allow(dead_code)]
 #[repr(u8)]
@@ -186,7 +187,7 @@ impl Serialize for IcmpPacket {
 
 #[allow(dead_code)]
 impl IcmpPacket {
-    fn description(&self) -> &'static str {
+    pub fn description(&self) -> &'static str {
         let icmp_type = self.header.icmp_type;
         let code = self.header.code;
         match icmp_type {
@@ -283,6 +284,12 @@ impl IcmpPacket {
 
             IcmpType::Unimplemented(_) => "Unimplemented",
         }
+    }
+
+    pub fn update_checksum(&mut self) {
+        self.header.checksum = 0;
+        let bytes = self.serialize();
+        self.header.checksum = checksum_16(&bytes);
     }
 }
 
@@ -407,4 +414,20 @@ fn test_icmp_packet_serialization() {
     ];
     let (_, packet) = parse_icmp_packet(&bytes).unwrap();
     assert_eq!(bytes, packet.serialize().as_slice());
+}
+
+
+
+#[test]
+fn test_icmp_packet_checksum() {
+    let bytes = [
+        8, 0, 80, 124, 0, 12, 0, 3, 237, 89, 158, 100, 0, 0, 0, 0, 91, 227, 1, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55
+    ];
+
+    eprintln!("{:?}", bytes);
+    let (_, mut packet) = parse_icmp_packet(&bytes).unwrap();
+    eprintln!("{:?}", packet);
+    let checksum = packet.header.checksum;
+    packet.update_checksum();
+    assert_eq!(checksum, packet.header.checksum);
 }

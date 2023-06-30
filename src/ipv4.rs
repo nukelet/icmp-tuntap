@@ -254,13 +254,33 @@ impl Ipv4Packet {
 fn test_ipv4_packet_checksum() {
     // random ICMP packet from a linux ping
     let bytes = [
-        8, 0, 69, 0, 0, 84, 98, 13, 64, 0, 64, 1, 196, 155, 10, 0, 0, 0, 10, 0, 0, 1, 8, 0, 96, 221, 0, 4, 0, 2, 214, 16, 157, 100, 0, 0, 0, 0, 86, 212, 14, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55
+        69, 0, 0, 84, 65, 118, 64, 0, 64, 1, 229, 50, 10, 0, 0, 0, 10, 0, 0, 1, 8, 0, 91, 182, 0, 9, 0, 2, 16, 36, 158, 100, 0, 0, 0, 0, 46, 227, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55
     ];
 
     let (_, mut packet) = parse_ipv4_packet(&bytes).unwrap();
+    eprintln!("{:?}", packet);
     let checksum = packet.header.checksum;
     packet.update_checksum();
     let sum = checksum as u32 + packet.header.checksum as u32;
     eprintln!("original: {:#06x}, calculated: {:#06x}, sum: {:#010x}", checksum, packet.header.checksum, sum);
     assert_eq!(checksum, packet.header.checksum);
+}
+
+impl Serialize for Ipv4Packet {
+    fn serialize(&self) -> Vec<u8> {
+        let mut s = Vec::new();
+        s.extend(&self.header.serialize());
+        s.extend(&self.data);
+        s
+    }
+}
+
+#[test]
+fn test_ipv4_packet_serialization() {
+    let bytes = [
+        69, 0, 0, 84, 117, 212, 64, 0, 64, 1, 176, 212, 10, 0, 0, 0, 10, 0, 0, 1, 8, 0, 251, 37, 0, 14, 0, 3, 175, 92, 158, 100, 0, 0, 0, 0, 231, 52, 9, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55
+    ];
+
+    let (_, packet) = parse_ipv4_packet(&bytes).unwrap();
+    assert_eq!(&bytes, packet.serialize().as_slice());
 }
