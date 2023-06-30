@@ -9,18 +9,28 @@ The program has minimal dependencies (just TUN/TAP bindings for Rust and the [`n
 
 ## Compiling and running
 
-You will need to install the Rust toolchain, either with [rustup](https://rustup.rs/) (recommended) or with your distro package manager. Run the `run.sh` script as `root`:
+You will need to install the Rust toolchain, either with [rustup](https://rustup.rs/) (recommended) or with your distro package manager. Run the `run.sh`:
 
 ```
-$ sudo ./run.sh
+$ ./run.sh
 ```
 
-I know that running as `sudo` is sketchy, but the script basically does the following:
+The script will ask for your `sudo` password, which I know is sketchy, but it basically does the following:
 
 - Compile the source
 - Grant NET_ADMIN capabilities to the executable, we can't create TUN/TAP interfaces without it (needs `sudo`)
 - Assign an IP address/subnet to the TUN/TAP interface, currently `10.0.0.0/24` (needs `sudo`)
 - Bring up the TUN/TAP interface (needs `sudo`)
+
+Note that the program itself is not run with admin privileges.
+
+In case you still get permission errors anyway, run the following:
+
+```
+$ ./run_sudo.sh
+```
+
+This will just run the executable with `sudo` and things will work.
 
 ## Testing
 
