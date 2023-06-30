@@ -14,7 +14,7 @@ fn main() {
         let mut buf = [0u8; 128];
         let read = iface.recv(&mut buf).unwrap();
         eprintln!("read {read} bytes");
-        eprintln!("raw: {:?}", &buf[0..read]);
+        // eprintln!("raw: {:?}", &buf[0..read]);
 
         // the TUN frames are as follows:
         // Flags: 2 bytes (usually 0x0000)
@@ -37,7 +37,6 @@ fn main() {
         }
 
         eprintln!("ICMP packet; trying to parse...");
-        eprintln!("raw ICMP packet: {:?}", &ip_packet.data);
         let (_, icmp_packet) = match parse_icmp_packet(&ip_packet.data) {
             Ok((offset, packet)) => (offset, packet),
             Err(_) => { eprintln!("Failed to parse packet"); continue; },
@@ -89,7 +88,6 @@ fn main() {
             reply.extend(ip_packet_reply.serialize());
 
             eprintln!("Sending echo reply: {:?}, {:?}", ip_packet_reply, icmp_reply);
-            eprintln!("Raw reply: {:?}", reply);
             iface.send(&reply).unwrap();
         }
     }
